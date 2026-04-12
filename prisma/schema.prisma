@@ -1,0 +1,156 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String
+  createdAt DateTime @default(now())
+  stores    Store[]
+}
+
+model Store {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shopDomain  String    @unique
+  shopName    String
+  accessToken String
+  currency    String    @default("USD")
+  timezone    String    @default("UTC")
+  lastSyncAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  orders     Order[]
+  products   Product[]
+  adAccounts AdAccount[]
+  expenses   Expense[]
+}
+
+model Order {
+  id                String    @id @default(cuid())
+  storeId           String
+  store             Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  shopifyOrderId    String
+  orderNumber       Int
+  email             String?
+  financialStatus   String
+  fulfillmentStatus String?
+  totalPrice        Float
+  subtotalPrice     Float
+  totalShipping     Float     @default(0)
+  totalTax          Float     @default(0)
+  totalDiscounts    Float     @default(0)
+  totalRefunds      Float     @default(0)
+  currency          String
+  cogs              Float     @default(0)
+  shippingCost      Float     @default(0)
+  transactionFees   Float     @default(0)
+  grossProfit       Float     @default(0)
+  createdAt         DateTime
+  updatedAt         DateTime  @updatedAt
+  processedAt       DateTime?
+  lineItems         LineItem[]
+
+  @@unique([storeId, shopifyOrderId])
+}
+
+model LineItem {
+  id           String  @id @default(cuid())
+  orderId      String
+  order        Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId    String?
+  variantId    String?
+  title        String
+  variantTitle String?
+  sku          String?
+  quantity     Int
+  price        Float
+  totalPrice   Float
+  cost         Float   @default(0)
+}
+
+model Product {
+  id               String           @id @default(cuid())
+  storeId          String
+  store            Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  shopifyProductId String
+  title            String
+  vendor           String?
+  productType      String?
+  status           String           @default("active")
+  updatedAt        DateTime         @updatedAt
+  variants         ProductVariant[]
+
+  @@unique([storeId, shopifyProductId])
+}
+
+model ProductVariant {
+  id               String  @id @default(cuid())
+  productId        String
+  product          Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  shopifyVariantId String  @unique
+  title            String
+  sku              String?
+  price            Float
+  cost             Float   @default(0)
+  inventoryQty     Int     @default(0)
+}
+
+model AdAccount {
+  id             String    @id @default(cuid())
+  storeId        String
+  store          Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  platform       String
+  accountId      String
+  accountName    String
+  accessToken    String?
+  refreshToken   String?
+  tokenExpiresAt DateTime?
+  currency       String    @default("USD")
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  adSpends       AdSpend[]
+
+  @@unique([storeId, platform, accountId])
+}
+
+model AdSpend {
+  id           String    @id @default(cuid())
+  adAccountId  String
+  adAccount    AdAccount @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  date         DateTime
+  campaignId   String?
+  campaignName String?
+  adSetId      String?
+  adSetName    String?
+  spend        Float
+  impressions  Int       @default(0)
+  clicks       Int       @default(0)
+  purchases    Int       @default(0)
+  revenue      Float     @default(0)
+  currency     String    @default("USD")
+
+  @@unique([adAccountId, date, campaignId])
+}
+
+model Expense {
+  id        String    @id @default(cuid())
+  storeId   String
+  store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  category  String
+  name      String
+  amount    Float
+  currency  String    @default("USD")
+  frequency String    @default("monthly")
+  startDate DateTime
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+}
