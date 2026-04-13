@@ -28,10 +28,11 @@ model Store {
   lastSyncAt  DateTime?
   createdAt   DateTime  @default(now())
 
-  orders     Order[]
-  products   Product[]
-  adAccounts AdAccount[]
-  expenses   Expense[]
+  orders      Order[]
+  products    Product[]
+  adAccounts  AdAccount[]
+  expenses    Expense[]
+  quotations  ProductQuotation[]
 }
 
 model Order {
@@ -50,6 +51,7 @@ model Order {
   totalDiscounts    Float     @default(0)
   totalRefunds      Float     @default(0)
   currency          String
+  shippingCountry   String    @default("")
   cogs              Float     @default(0)
   shippingCost      Float     @default(0)
   transactionFees   Float     @default(0)
@@ -139,6 +141,21 @@ model AdSpend {
   currency     String    @default("USD")
 
   @@unique([adAccountId, date, campaignId])
+}
+
+model ProductQuotation {
+  id          String   @id @default(cuid())
+  storeId     String
+  store       Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  remark      String
+  keyword     String
+  country     String
+  productFee  Float
+  shippingFee Float
+  totalPrice  Float
+  createdAt   DateTime @default(now())
+
+  @@unique([storeId, keyword, country])
 }
 
 model Expense {

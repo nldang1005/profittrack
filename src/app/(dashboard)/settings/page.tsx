@@ -11,6 +11,7 @@ import {
   RefreshCw,
   ExternalLink,
   DollarSign,
+  Package,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,27 @@ interface StoreInfo {
   }[];
 }
 
+const COUNTRY_LABELS: Record<string, string> = {
+  US: "United States",
+  GB: "United Kingdom",
+  NL: "Netherlands",
+  BE: "Belgium",
+  DE: "Germany",
+  FR: "France",
+  AU: "Australia",
+  CA: "Canada",
+};
+
+interface Quotation {
+  id: string;
+  remark: string;
+  keyword: string;
+  country: string;
+  productFee: number;
+  shippingFee: number;
+  totalPrice: number;
+}
+
 interface ProductCost {
   id: string;
   productId: string;
@@ -49,6 +71,14 @@ export default function SettingsPage() {
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [savingCosts, setSavingCosts] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [quotations, setQuotations] = useState<Quotation[]>([]);
+  const [showAddQuotation, setShowAddQuotation] = useState(false);
+  const [applyingCOGS, setApplyingCOGS] = useState(false);
+  const [applyResult, setApplyResult] = useState<string | null>(null);
+  const [newQuotation, setNewQuotation] = useState({
+    remark: "", keyword: "", country: "US",
+    productFee: "", shippingFee: "", totalPrice: "",
+  });
   const [expenses, setExpenses] = useState<any[]>([]);
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [newExpense, setNewExpense] = useState({ name: "", amount: "", frequency: "monthly", category: "custom" });
@@ -77,10 +107,17 @@ export default function SettingsPage() {
     setExpenses(data.expenses || []);
   }
 
+  async function fetchQuotations() {
+    const res = await fetch("/api/quotations");
+    const data = await res.json();
+    setQuotations(data.quotations || []);
+  }
+
   useEffect(() => {
     fetchSettings();
     fetchProducts();
     fetchExpenses();
+    fetchQuotations();
   }, []);
 
   async function connectShopify() {
@@ -127,6 +164,37 @@ export default function SettingsPage() {
   async function deleteExpense(id: string) {
     await fetch(`/api/expenses/${id}`, { method: "DELETE" });
     fetchExpenses();
+  }
+
+  async function addQuotation() {
+    if (!newQuotation.remark || !newQuotation.keyword || !newQuotation.totalPrice) return;
+    await fetch("/api/quotations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...newQuotation,
+        productFee: parseFloat(newQuotation.productFee) || 0,
+        shippingFee: parseFloat(newQuotation.shippingFee) || 0,
+        totalPrice: parseFloat(newQuotation.totalPrice),
+      }),
+    });
+    setShowAddQuotation(false);
+    setNewQuotation({ remark: "", keyword: "", country: "US", productFee: "", shippingFee: "", totalPrice: "" });
+    fetchQuotations();
+  }
+
+  async function deleteQuotation(id: string) {
+    await fetch(`/api/quotations/${id}`, { method: "DELETE" });
+    fetchQuotations();
+  }
+
+  async function applyCOGS() {
+    setApplyingCOGS(true);
+    setApplyResult(null);
+    const res = await fetch("/api/quotations/apply", { method: "POST" });
+    const data = await res.json();
+    setApplyResult(`Updated COGS for ${data.updated} orders`);
+    setApplyingCOGS(false);
   }
 
   return (
@@ -267,6 +335,165 @@ export default function SettingsPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Dropsure Product Quotation */}
+        {storeInfo && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-100">
+                    <Package className="h-5 w-5 text-orange-600" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base">Dropsure Product Quotation</CardTitle>
+                    <CardDescription>Nhập bảng giá Dropsure để tính COGS tự động theo sản phẩm và quốc gia</CardDescription>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setShowAddQuotation(true)}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    Thêm
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={applyCOGS}
+                    disabled={applyingCOGS || quotations.length === 0}
+                    className="bg-orange-500 hover:bg-orange-600 text-white"
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-1 ${applyingCOGS ? "animate-spin" : ""}`} />
+                    {applyingCOGS ? "Đang apply..." : "Apply COGS"}
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {applyResult && (
+                <div className="mb-3 flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-700">
+                  <CheckCircle className="h-4 w-4" />
+                  {applyResult}
+                </div>
+              )}
+
+              {showAddQuotation && (
+                <div className="mb-4 rounded-lg border border-gray-200 p-4 space-y-3">
+                  <p className="text-xs font-semibold text-gray-600">Thêm quotation mới</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-500 font-medium">Tên hiển thị (Remark)</label>
+                      <input
+                        value={newQuotation.remark}
+                        onChange={(e) => setNewQuotation({ ...newQuotation, remark: e.target.value })}
+                        placeholder="VD: Diffuser 1 bottle - US"
+                        className="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 font-medium">Keyword (khớp tên sản phẩm)</label>
+                      <input
+                        value={newQuotation.keyword}
+                        onChange={(e) => setNewQuotation({ ...newQuotation, keyword: e.target.value })}
+                        placeholder="VD: 1 bottle"
+                        className="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 font-medium">Quốc gia</label>
+                      <select
+                        value={newQuotation.country}
+                        onChange={(e) => setNewQuotation({ ...newQuotation, country: e.target.value })}
+                        className="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                      >
+                        {Object.entries(COUNTRY_LABELS).map(([code, name]) => (
+                          <option key={code} value={code}>{code} – {name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 font-medium">Total Price ($)</label>
+                      <input
+                        type="number" step="0.01" min="0"
+                        value={newQuotation.totalPrice}
+                        onChange={(e) => setNewQuotation({ ...newQuotation, totalPrice: e.target.value })}
+                        placeholder="29.53"
+                        className="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 font-medium">Product Fee ($)</label>
+                      <input
+                        type="number" step="0.01" min="0"
+                        value={newQuotation.productFee}
+                        onChange={(e) => setNewQuotation({ ...newQuotation, productFee: e.target.value })}
+                        placeholder="16.38"
+                        className="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 font-medium">Shipping Fee ($)</label>
+                      <input
+                        type="number" step="0.01" min="0"
+                        value={newQuotation.shippingFee}
+                        onChange={(e) => setNewQuotation({ ...newQuotation, shippingFee: e.target.value })}
+                        placeholder="13.15"
+                        className="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={addQuotation}
+                      disabled={!newQuotation.remark || !newQuotation.keyword || !newQuotation.totalPrice}>
+                      Lưu
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setShowAddQuotation(false)}>Huỷ</Button>
+                  </div>
+                </div>
+              )}
+
+              {quotations.length === 0 ? (
+                <p className="text-sm text-gray-400">Chưa có quotation nào. Nhấn "Thêm" để bắt đầu.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        <th className="py-2 px-3 text-left text-gray-400 font-medium">Remark</th>
+                        <th className="py-2 px-3 text-left text-gray-400 font-medium">Keyword</th>
+                        <th className="py-2 px-3 text-left text-gray-400 font-medium">Quốc gia</th>
+                        <th className="py-2 px-3 text-right text-gray-400 font-medium">Product</th>
+                        <th className="py-2 px-3 text-right text-gray-400 font-medium">Shipping</th>
+                        <th className="py-2 px-3 text-right text-gray-400 font-medium">Total</th>
+                        <th className="py-2 px-3" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {quotations.map((q) => (
+                        <tr key={q.id} className="hover:bg-gray-50">
+                          <td className="py-2 px-3 text-gray-800">{q.remark}</td>
+                          <td className="py-2 px-3 font-mono text-indigo-600">{q.keyword}</td>
+                          <td className="py-2 px-3 text-gray-600">{q.country} – {COUNTRY_LABELS[q.country] ?? q.country}</td>
+                          <td className="py-2 px-3 text-right text-gray-600">${q.productFee.toFixed(2)}</td>
+                          <td className="py-2 px-3 text-right text-gray-600">${q.shippingFee.toFixed(2)}</td>
+                          <td className="py-2 px-3 text-right font-semibold text-gray-800">${q.totalPrice.toFixed(2)}</td>
+                          <td className="py-2 px-3 text-right">
+                            <button onClick={() => deleteQuotation(q.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <p className="mt-3 text-xs text-gray-400">
+                Keyword được so với tên sản phẩm + variant trong Shopify (không phân biệt hoa thường).
+                Nếu đơn không có country, hệ thống dùng quotation khớp keyword bất kỳ quốc gia.
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Product Costs (COGS) */}
         {storeInfo && (

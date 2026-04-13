@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     const orders = await shopifyFetchAll<any>(
       store.shopDomain,
       store.accessToken,
-      `/orders.json?status=any&created_at_min=${since}&limit=250&fields=id,order_number,email,financial_status,fulfillment_status,total_price,subtotal_price,total_shipping_price_set,total_tax,total_discounts,total_price_set,created_at,processed_at,refunds,line_items,payment_gateway`,
+      `/orders.json?status=any&created_at_min=${since}&limit=250&fields=id,order_number,email,financial_status,fulfillment_status,total_price,subtotal_price,total_shipping_price_set,total_tax,total_discounts,total_price_set,created_at,processed_at,refunds,line_items,payment_gateway,shipping_address`,
       "orders"
     );
 
@@ -108,6 +108,7 @@ export async function POST(request: Request) {
           totalDiscounts: parseFloat(order.total_discounts || 0),
           totalRefunds,
           currency: store.currency,
+          shippingCountry: order.shipping_address?.country_code || "",
           cogs,
           transactionFees,
           grossProfit: totalPrice - totalRefunds - cogs - transactionFees,
@@ -118,6 +119,7 @@ export async function POST(request: Request) {
           financialStatus: order.financial_status,
           fulfillmentStatus: order.fulfillment_status,
           totalRefunds,
+          shippingCountry: order.shipping_address?.country_code || "",
           cogs,
           transactionFees,
           grossProfit: totalPrice - totalRefunds - cogs - transactionFees,

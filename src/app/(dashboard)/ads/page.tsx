@@ -44,22 +44,31 @@ interface AdsData {
 export default function AdsPage() {
   const [data, setData] = useState<AdsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [dateRange, setDateRange] = useState({
     from: format(subDays(new Date(), 29), "yyyy-MM-dd"),
     to: format(new Date(), "yyyy-MM-dd"),
     label: "Last 30 days",
   });
 
+  async function loadData() {
+    setLoading(true);
+    const res = await fetch(`/api/ads?from=${dateRange.from}&to=${dateRange.to}`);
+    const json = await res.json();
+    setData(json);
+    setLoading(false);
+  }
+
   useEffect(() => {
-    async function fetch_() {
-      setLoading(true);
-      const res = await fetch(`/api/ads?from=${dateRange.from}&to=${dateRange.to}`);
-      const json = await res.json();
-      setData(json);
-      setLoading(false);
-    }
-    fetch_();
+    loadData();
   }, [dateRange]);
+
+  async function handleSync() {
+    setSyncing(true);
+    await fetch("/api/facebook/sync", { method: "POST" });
+    await loadData();
+    setSyncing(false);
+  }
 
   if (loading || !data) {
     return (
@@ -79,6 +88,8 @@ export default function AdsPage() {
       <Header
         storeName={data.storeName}
         onDateRangeChange={(from, to, label) => setDateRange({ from, to, label })}
+        onSync={handleSync}
+        syncing={syncing}
       />
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
