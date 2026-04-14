@@ -41,6 +41,7 @@ const COUNTRY_LABELS: Record<string, string> = {
   BE: "Belgium",
   DE: "Germany",
   FR: "France",
+  AT: "Austria",
   AU: "Australia",
   CA: "Canada",
 };
@@ -71,6 +72,7 @@ export default function SettingsPage() {
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [savingCosts, setSavingCosts] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [syncingAds, setSyncingAds] = useState(false);
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [showAddQuotation, setShowAddQuotation] = useState(false);
   const [applyingCOGS, setApplyingCOGS] = useState(false);
@@ -132,9 +134,14 @@ export default function SettingsPage() {
   async function syncStore() {
     setSyncing(true);
     await fetch("/api/shopify/sync", { method: "POST" });
-    await fetch("/api/facebook/sync", { method: "POST" });
     await fetchSettings();
     setSyncing(false);
+  }
+
+  async function syncAds() {
+    setSyncingAds(true);
+    await fetch("/api/facebook/sync", { method: "POST" });
+    setSyncingAds(false);
   }
 
   async function updateVariantCost(variantId: string, cost: number) {
@@ -317,10 +324,21 @@ export default function SettingsPage() {
                       </Badge>
                     </div>
                   ))}
-                <Button variant="outline" size="sm" onClick={connectFacebook}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add More Accounts
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={syncAds}
+                    disabled={syncingAds}
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-1 ${syncingAds ? "animate-spin" : ""}`} />
+                    {syncingAds ? "Syncing..." : "Sync Ads Spend"}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={connectFacebook}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add More Accounts
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="space-y-3">

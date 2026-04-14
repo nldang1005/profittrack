@@ -22,6 +22,7 @@ interface ProductPerf {
 export default function ProductsPage() {
   const [products, setProducts] = useState<ProductPerf[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [storeName, setStoreName] = useState("");
   const [currency, setCurrency] = useState("USD");
   const [search, setSearch] = useState("");
@@ -30,18 +31,26 @@ export default function ProductsPage() {
     to: format(new Date(), "yyyy-MM-dd"),
   });
 
+  async function loadData() {
+    setLoading(true);
+    const res = await fetch(`/api/products/performance?from=${dateRange.from}&to=${dateRange.to}`);
+    const data = await res.json();
+    setProducts(data.products || []);
+    setStoreName(data.storeName || "");
+    setCurrency(data.currency || "USD");
+    setLoading(false);
+  }
+
   useEffect(() => {
-    async function fetch_() {
-      setLoading(true);
-      const res = await fetch(`/api/products/performance?from=${dateRange.from}&to=${dateRange.to}`);
-      const data = await res.json();
-      setProducts(data.products || []);
-      setStoreName(data.storeName || "");
-      setCurrency(data.currency || "USD");
-      setLoading(false);
-    }
-    fetch_();
+    loadData();
   }, [dateRange]);
+
+  async function handleSync() {
+    setSyncing(true);
+    await fetch("/api/shopify/sync", { method: "POST" });
+    await loadData();
+    setSyncing(false);
+  }
 
   const filtered = products.filter((p) =>
     p.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -53,6 +62,8 @@ export default function ProductsPage() {
       <Header
         storeName={storeName}
         onDateRangeChange={(from, to) => setDateRange({ from, to })}
+        onSync={handleSync}
+        syncing={syncing}
       />
 
       <div className="flex-1 overflow-y-auto p-6 space-y-4">

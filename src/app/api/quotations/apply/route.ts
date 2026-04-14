@@ -4,12 +4,13 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
 // ─── Component classification ─────────────────────────────────────────────────
-type Component = "diffuser" | "oil" | "lamp" | "brush" | "ignore";
+type Component = "diffuser" | "oil" | "lamp" | "brush" | "cannon" | "ignore";
 
 function classify(title: string, variantTitle: string | null): Component {
   const t = (title + " " + (variantTitle ?? "")).toLowerCase();
   if (t.includes("shipping protection") || t.includes("insurance")) return "ignore";
   if (t.includes("lamp"))      return "lamp";
+  if (t.includes("cannon"))    return "cannon";
   if (t.includes("brush") || t.includes("cleaning")) return "brush";
   if (
     t.includes("jellyfish") || t.includes("humidifier") || t.includes("vibe") ||
@@ -26,18 +27,20 @@ interface Composition {
   nOils:      number;
   nLamps:     number;
   nBrush:     number;
+  nCannon:    number;
 }
 
 function compose(lineItems: { title: string; variantTitle: string | null; quantity: number }[]): Composition {
-  let nDiffusers = 0, nOils = 0, nLamps = 0, nBrush = 0;
+  let nDiffusers = 0, nOils = 0, nLamps = 0, nBrush = 0, nCannon = 0;
   for (const item of lineItems) {
     const type = classify(item.title, item.variantTitle);
-    if (type === "diffuser") nDiffusers += item.quantity;
-    else if (type === "oil")  nOils      += item.quantity;
-    else if (type === "lamp") nLamps     += item.quantity;
-    else if (type === "brush") nBrush    += item.quantity;
+    if (type === "diffuser")    nDiffusers += item.quantity;
+    else if (type === "oil")    nOils      += item.quantity;
+    else if (type === "lamp")   nLamps     += item.quantity;
+    else if (type === "brush")  nBrush     += item.quantity;
+    else if (type === "cannon") nCannon    += item.quantity;
   }
-  return { nDiffusers, nOils, nLamps, nBrush };
+  return { nDiffusers, nOils, nLamps, nBrush, nCannon };
 }
 
 // ─── Lookup helper ────────────────────────────────────────────────────────────
@@ -52,18 +55,26 @@ function lookup(quotations: Quotation[], keyword: string, country: string): Quot
 
 // ─── COGS calculation ─────────────────────────────────────────────────────────
 function calcCOGS(comp: Composition, country: string, quotations: Quotation[]): number | null {
-  const { nDiffusers, nOils, nLamps, nBrush } = comp;
+  const { nDiffusers, nOils, nLamps, nBrush, nCannon } = comp;
 
   // Nothing shippable
-  if (nDiffusers === 0 && nOils === 0 && nBrush === 0) return null;
+  if (nDiffusers === 0 && nOils === 0 && nBrush === 0 && nCannon === 0) return null;
 
   let total = 0;
 
   // Case A: diffuser present
   if (nDiffusers > 0) {
-    if (nOils === 0 && nBrush > 0) {
-      // A1: diffuser + brush only (no oils) → "diffuser brush" bundle
-      const q = lookup(quotations, "diffuser brush", country);
+    if (nCannon > 0 && nOils > 0) {
+      // A0: diffuser + bottle + cannon → "1 bottle cannon"
+      const q = lookup(quotations, "1 bottle cannon", country);
+      if (!q) return null;
+      total += q.totalPrice * nDiffusers;
+
+    } else if (nOils === 0 && nBrush > 0) {
+      // A1: diffuser + brush only (no oils)
+      // Use "diffuser 3 brush" if 3+ brushes, else "diffuser brush"
+      const brushKeyword = nBrush >= 3 ? "diffuser 3 brush" : "diffuser brush";
+      const q = lookup(quotations, brushKeyword, country) ?? lookup(quotations, "diffuser brush", country);
       if (!q) return null;
       total += q.totalPrice * nDiffusers;
 
@@ -87,15 +98,14 @@ function calcCOGS(comp: Composition, country: string, quotations: Quotation[]): 
       if (!q) return null;
       total += q.totalPrice * nDiffusers;
 
-      // Add standalone brush cost on top (if brush present and not already
-      // included in the matched quotation — 4+bottle bundles already include brush)
+      // Add standalone brush cost on top (4+ bottle bundles already include brush)
       if (nBrush > 0 && !["4 bottle", "5 bottle"].includes(keyword)) {
         const bq = lookup(quotations, "brush", country);
         if (bq) total += bq.totalPrice * nBrush;
       }
 
     } else {
-      // A3: diffuser only (no oils, no brush) → use "1 bottle" as baseline
+      // A3: diffuser only → use "1 bottle" as baseline
       const q = lookup(quotations, "1 bottle", country);
       if (!q) return null;
       total += q.totalPrice * nDiffusers;

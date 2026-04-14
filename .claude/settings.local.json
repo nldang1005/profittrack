@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(npx prisma:*)",
+      "Bash(taskkill /PID 31520 /F)",
+      "Bash(cmd /c \"taskkill /PID 31520 /F\")",
+      "Bash(powershell -Command \"Stop-Process -Id 31520 -Force\")",
+      "Bash(xargs grep:*)",
+      "Bash(npx playwright:*)",
+      "Bash(powershell -Command \"Stop-Process -Name 'node' -Force -ErrorAction SilentlyContinue\")",
+      "Bash(ls c:/Users/user/profittrack/node_modules/.prisma/client/*.tmp*)",
+      "Bash(xargs rm:*)",
+      "Bash(node seed-quotations.js)",
+      "Bash(node seed-quotations2.js)",
+      "Bash(node -e ':*)",
+      "Bash(node sync-country.js)",
+      "Bash(node sync-country2.js)",
+      "Bash(node seed-brush.js)",
+      "Bash(node compare-invoice.js)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)",
+      "Bash(powershell -Command \"Get-Process node -ErrorAction SilentlyContinue | Select-Object Id, CPU, StartTime | Format-Table\")",
+      "Bash(powershell -Command \"Stop-Process -Name node -Force -ErrorAction SilentlyContinue\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/)"
+    ]
+  }
+}
