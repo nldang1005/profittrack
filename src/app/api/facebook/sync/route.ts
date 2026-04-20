@@ -29,8 +29,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, message: "No Facebook accounts" });
   }
 
-  const dateFrom = format(subDays(new Date(), 30), "yyyy-MM-dd");
-  const dateTo = format(new Date(), "yyyy-MM-dd");
+  // Accept date range from request body; default to last 90 days
+  let dateFrom: string, dateTo: string;
+  try {
+    const body = await request.json().catch(() => ({}));
+    dateFrom = body.from || format(subDays(new Date(), 89), "yyyy-MM-dd");
+    dateTo   = body.to   || format(new Date(), "yyyy-MM-dd");
+  } catch {
+    dateFrom = format(subDays(new Date(), 89), "yyyy-MM-dd");
+    dateTo   = format(new Date(), "yyyy-MM-dd");
+  }
 
   let totalRecords = 0;
 

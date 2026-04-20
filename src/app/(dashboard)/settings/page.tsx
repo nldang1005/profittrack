@@ -42,6 +42,7 @@ const COUNTRY_LABELS: Record<string, string> = {
   DE: "Germany",
   FR: "France",
   AT: "Austria",
+  CZ: "Czechia",
   AU: "Australia",
   CA: "Canada",
 };
@@ -140,7 +141,14 @@ export default function SettingsPage() {
 
   async function syncAds() {
     setSyncingAds(true);
-    await fetch("/api/facebook/sync", { method: "POST" });
+    // Sync last 90 days by default from Settings
+    const to   = new Date().toISOString().slice(0, 10);
+    const from = new Date(Date.now() - 89 * 86400000).toISOString().slice(0, 10);
+    await fetch("/api/facebook/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ from, to }),
+    });
     setSyncingAds(false);
   }
 
@@ -324,7 +332,7 @@ export default function SettingsPage() {
                       </Badge>
                     </div>
                   ))}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Button
                     variant="outline"
                     size="sm"
@@ -333,6 +341,10 @@ export default function SettingsPage() {
                   >
                     <RefreshCw className={`h-4 w-4 mr-1 ${syncingAds ? "animate-spin" : ""}`} />
                     {syncingAds ? "Syncing..." : "Sync Ads Spend"}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={connectFacebook}>
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                    Reconnect
                   </Button>
                   <Button variant="outline" size="sm" onClick={connectFacebook}>
                     <Plus className="h-4 w-4 mr-1" />

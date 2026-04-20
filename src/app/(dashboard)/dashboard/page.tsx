@@ -115,7 +115,11 @@ export default function DashboardPage() {
   async function handleSync() {
     setSyncing(true);
     await fetch("/api/shopify/sync", { method: "POST" });
-    await fetch("/api/facebook/sync", { method: "POST" });
+    await fetch("/api/facebook/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ from: dateRange.from, to: dateRange.to }),
+    });
     await fetchDashboard();
     setSyncing(false);
   }

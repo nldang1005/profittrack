@@ -4,10 +4,10 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { format } from "date-fns";
 
-/** Line items to exclude from COGS allocation (e.g. Shipping Protection) */
+/** Line items to exclude from COGS allocation and product list */
 function isIgnored(title: string) {
   const t = title.toLowerCase();
-  return t.includes("shipping protection") || t.includes("insurance");
+  return t.includes("shipping protection") || t.includes("insurance") || t === "tip";
 }
 
 export async function GET(request: Request) {
