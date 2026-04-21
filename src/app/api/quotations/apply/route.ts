@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
 // ─── Component classification ─────────────────────────────────────────────────
-type Component = "jellyfish" | "bloom" | "salt" | "oil" | "lamp" | "brush" | "cannon" | "ignore";
+type Component = "jellyfish" | "rhythm" | "bloom" | "salt" | "oil" | "lamp" | "brush" | "cannon" | "ignore";
 
 function classify(title: string, variantTitle: string | null): Component {
   const t = (title + " " + (variantTitle ?? "")).toLowerCase();
@@ -15,6 +15,7 @@ function classify(title: string, variantTitle: string | null): Component {
   if (t.includes("brush") || t.includes("cleaning")) return "brush";
   if (t.includes("bloom") || t.includes("botanical")) return "bloom";
   if (t.includes("himalayan") || t.includes("salt stone")) return "salt";
+  if (t.includes("rhythm")) return "rhythm";  // before jellyfish — "Aero-Jellyfish Rhythm" contains both
   if (
     t.includes("jellyfish") || t.includes("humidifier") || t.includes("vibe") ||
     t.includes("diffuser")  ||
@@ -27,6 +28,7 @@ function classify(title: string, variantTitle: string | null): Component {
 // ─── Order composition ────────────────────────────────────────────────────────
 interface Composition {
   nJellyfish: number;
+  nRhythm:    number;
   nBloom:     number;
   nSalt:      number;
   nOils:      number;
@@ -36,10 +38,11 @@ interface Composition {
 }
 
 function compose(lineItems: { title: string; variantTitle: string | null; quantity: number }[]): Composition {
-  let nJellyfish = 0, nBloom = 0, nSalt = 0, nOils = 0, nLamps = 0, nBrush = 0, nCannon = 0;
+  let nJellyfish = 0, nRhythm = 0, nBloom = 0, nSalt = 0, nOils = 0, nLamps = 0, nBrush = 0, nCannon = 0;
   for (const item of lineItems) {
     const type = classify(item.title, item.variantTitle);
     if (type === "jellyfish")   nJellyfish += item.quantity;
+    else if (type === "rhythm") nRhythm    += item.quantity;
     else if (type === "bloom")  nBloom     += item.quantity;
     else if (type === "salt")   nSalt      += item.quantity;
     else if (type === "oil")    nOils      += item.quantity;
@@ -47,7 +50,7 @@ function compose(lineItems: { title: string; variantTitle: string | null; quanti
     else if (type === "brush")  nBrush     += item.quantity;
     else if (type === "cannon") nCannon    += item.quantity;
   }
-  return { nJellyfish, nBloom, nSalt, nOils, nLamps, nBrush, nCannon };
+  return { nJellyfish, nRhythm, nBloom, nSalt, nOils, nLamps, nBrush, nCannon };
 }
 
 // ─── Lookup helper ────────────────────────────────────────────────────────────
@@ -126,12 +129,29 @@ function calcForDiffuserType(
 }
 
 function calcCOGS(comp: Composition, country: string, quotations: Quotation[]): number | null {
-  const { nJellyfish, nBloom, nSalt, nOils, nLamps, nBrush, nCannon } = comp;
+  const { nJellyfish, nRhythm, nBloom, nSalt, nOils, nLamps, nBrush, nCannon } = comp;
 
-  const nDiffusers = nJellyfish + nBloom + nSalt;
+  const nDiffusers = nJellyfish + nRhythm + nBloom + nSalt;
   if (nDiffusers === 0 && nOils === 0 && nBrush === 0 && nCannon === 0) return null;
 
   let total = 0;
+
+  // Mixed jellyfish + rhythm order → look for combined quotation first
+  if (nJellyfish > 0 && nRhythm > 0) {
+    const b = Math.min(nOils, 5);
+    let keyword = `jellyfish rhythm ${b} bottle`;
+    if (nBrush > 0) keyword += " brush";
+    const q = lookup(quotations, keyword, country);
+    if (!q) return null;
+    return q.totalPrice;
+  }
+
+  // Pure rhythm orders
+  if (nRhythm > 0) {
+    const sub = calcForDiffuserType("rhythm", nRhythm, nOils, nLamps, nBrush, nCannon, country, quotations);
+    if (sub === null) return null;
+    total += sub;
+  }
 
   // Jellyfish diffuser orders
   if (nJellyfish > 0) {
@@ -147,7 +167,7 @@ function calcCOGS(comp: Composition, country: string, quotations: Quotation[]): 
     total += sub;
   }
 
-  // Salt diffuser orders (always includes adapter in unit cost)
+  // Salt diffuser orders
   if (nSalt > 0) {
     const sub = calcForDiffuserType("salt", nSalt, nOils, nLamps, nBrush, nCannon, country, quotations);
     if (sub === null) return null;
