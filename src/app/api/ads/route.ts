@@ -82,7 +82,7 @@ export async function GET(request: Request) {
   });
 
   // ── Insights ────────────────────────────────────────────────────────────────
-  const activeCutoff = subDays(new Date(), 4);
+  const activeCutoff = subDays(to, 4);
   const activeCampaignIds = new Set(
     spends.filter(s => new Date(s.date) >= activeCutoff && s.spend > 0).map(s => s.campaignId)
   );
