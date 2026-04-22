@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { format, subDays } from "date-fns";
-import { TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle, XCircle, Zap, ArrowUpRight } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle, XCircle, Zap, ArrowUpRight, Sparkles, StopCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Header from "@/components/layout/Header";
 import { formatCurrency, formatNumber } from "@/lib/utils";
@@ -75,6 +75,9 @@ export default function AdsPage() {
     to: format(new Date(), "yyyy-MM-dd"),
     label: "Last 30 days",
   });
+  const [aiAnalysis, setAiAnalysis] = useState<string>("");
+  const [analyzing, setAnalyzing] = useState(false);
+  const aiAbortRef = useRef<AbortController | null>(null);
 
   async function loadData() {
     setLoading(true);
@@ -85,6 +88,37 @@ export default function AdsPage() {
   }
 
   useEffect(() => { loadData(); }, [dateRange]);
+
+  async function handleAiAnalysis() {
+    if (analyzing) {
+      aiAbortRef.current?.abort();
+      setAnalyzing(false);
+      return;
+    }
+    setAiAnalysis("");
+    setAnalyzing(true);
+    const ctrl = new AbortController();
+    aiAbortRef.current = ctrl;
+    try {
+      const res = await fetch(`/api/ads/ai-analysis?from=${dateRange.from}&to=${dateRange.to}`, { signal: ctrl.signal });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Lỗi không xác định" }));
+        setAiAnalysis(`❌ ${err.error || "Lỗi khi gọi AI"}`);
+        return;
+      }
+      const reader = res.body!.getReader();
+      const dec = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        setAiAnalysis(prev => prev + dec.decode(value, { stream: true }));
+      }
+    } catch (e: any) {
+      if (e.name !== "AbortError") setAiAnalysis(prev => prev || "❌ Kết nối bị gián đoạn.");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
 
   async function handleSync() {
     setSyncing(true);
@@ -283,6 +317,53 @@ export default function AdsPage() {
             </Card>
           </div>
         )}
+
+        {/* AI Analysis */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-indigo-500" />
+                Phân tích AI — Chiến lược Scale
+              </CardTitle>
+              <button
+                onClick={handleAiAnalysis}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  analyzing
+                    ? "bg-red-100 text-red-600 hover:bg-red-200"
+                    : "bg-indigo-600 text-white hover:bg-indigo-700"
+                }`}
+              >
+                {analyzing ? (
+                  <><StopCircle className="h-3.5 w-3.5" /> Dừng</>
+                ) : (
+                  <><Sparkles className="h-3.5 w-3.5" /> Phân tích với Claude AI</>
+                )}
+              </button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {!aiAnalysis && !analyzing && (
+              <p className="text-sm text-gray-400 text-center py-6">
+                Nhấn "Phân tích với Claude AI" để nhận đánh giá toàn diện và kế hoạch scale chiến dịch.
+              </p>
+            )}
+            {analyzing && !aiAnalysis && (
+              <div className="flex items-center gap-2 py-6 justify-center text-sm text-indigo-600">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
+                Claude đang phân tích dữ liệu...
+              </div>
+            )}
+            {aiAnalysis && (
+              <div className="prose prose-sm max-w-none text-gray-700">
+                <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{aiAnalysis}</pre>
+                {analyzing && (
+                  <span className="inline-block h-4 w-0.5 bg-indigo-600 animate-pulse ml-0.5 align-text-bottom" />
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Campaigns Table */}
         <Card>
