@@ -46,7 +46,7 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [dateRange, setDateRange] = useState({
-    from: format(subDays(new Date(), 29), "yyyy-MM-dd"),
+    from: format(subDays(new Date(), 59), "yyyy-MM-dd"),
     to: format(new Date(), "yyyy-MM-dd"),
   });
   const [storeName, setStoreName] = useState("");
