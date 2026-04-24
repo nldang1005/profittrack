@@ -108,12 +108,22 @@ function calcForDiffuserType(
       else keyword = `${prefix} 5 bottle`;
     }
 
+    // For 1–3 bottle bundles: try combined keyword with brush first (single-shipment price)
+    const is4plus = keyword.includes("4 bottle") || keyword.includes("5 bottle");
+    if (nBrush > 0 && !is4plus) {
+      const combined = lookup(quotations, `${keyword} brush`, country);
+      if (combined) {
+        total += combined.totalPrice * nUnits;
+        return total;
+      }
+    }
+
     const q = lookup(quotations, keyword, country);
     if (!q) return null;
     total += q.totalPrice * nUnits;
 
-    // Add standalone brush (4+ bottle bundles already include brush)
-    if (nBrush > 0 && !keyword.includes("4 bottle") && !keyword.includes("5 bottle")) {
+    // Fallback: add standalone brush cost (4+ bottle bundles already include brush)
+    if (nBrush > 0 && !is4plus) {
       const bq = lookup(quotations, "brush", country);
       if (bq) total += bq.totalPrice * nBrush;
     }
@@ -140,7 +150,9 @@ function calcCOGS(comp: Composition, country: string, quotations: Quotation[]): 
   if (nJellyfish > 0 && nRhythm > 0) {
     const b = Math.min(nOils, 5);
     let keyword = `jellyfish rhythm ${b} bottle`;
-    if (nBrush > 0) keyword += " brush";
+    if (nCannon > 0) keyword += " cannon";
+    if (nLamps  > 0) keyword += " lamp";
+    if (nBrush  > 0) keyword += " brush";
     const q = lookup(quotations, keyword, country);
     if (!q) return null;
     return q.totalPrice;
