@@ -46,6 +46,7 @@ const COUNTRY_LABELS: Record<string, string> = {
   AU: "Australia",
   CA: "Canada",
   FI: "Finland",
+  CH: "Switzerland",
 };
 
 interface Quotation {
