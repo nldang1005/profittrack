@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const fromStr = searchParams.get("from") || format(new Date(Date.now() - 29 * 86400000), "yyyy-MM-dd");
+  const fromStr = searchParams.get("from") || "2026-03-20";
   const toStr = searchParams.get("to") || format(new Date(), "yyyy-MM-dd");
 
   const from = new Date(fromStr + "T00:00:00.000Z");

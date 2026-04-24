@@ -95,9 +95,9 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [dateRange, setDateRange] = useState({
-    from: format(subDays(new Date(), 29), "yyyy-MM-dd"),
+    from: "2026-03-20",
     to: format(new Date(), "yyyy-MM-dd"),
-    label: "Last 30 days",
+    label: "Since Mar 20",
   });
 
   async function fetchDashboard() {
