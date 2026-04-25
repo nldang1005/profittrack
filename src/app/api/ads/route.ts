@@ -85,12 +85,12 @@ export async function GET(request: Request) {
   // Active = had spend on the most recent synced day (not a fixed 4-day window).
   // Facebook API only returns rows for days with spend > 0, so a paused campaign
   // won't appear on days after it was paused — accurate after the next sync.
+  // Use last 2 data days to handle Facebook's ~1-day reporting delay.
   const sortedDays = [...new Set(spends.map(s => format(new Date(s.date), "yyyy-MM-dd")))].sort();
   const lastDataDay = sortedDays.length > 0 ? sortedDays[sortedDays.length - 1] : null;
+  const last2Days   = new Set(sortedDays.slice(-2));
   const activeCampaignIds = new Set(
-    lastDataDay
-      ? spends.filter(s => format(new Date(s.date), "yyyy-MM-dd") === lastDataDay && s.spend > 0).map(s => s.campaignId)
-      : []
+    spends.filter(s => last2Days.has(format(new Date(s.date), "yyyy-MM-dd")) && s.spend > 0).map(s => s.campaignId)
   );
   const activeCampaigns = campaigns.filter(c => activeCampaignIds.has(c.campaignId));
 
