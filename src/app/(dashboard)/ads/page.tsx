@@ -27,6 +27,7 @@ interface Campaign {
 interface Insight {
   overallTrend: "improving" | "declining" | "stable";
   trendDelta: number;
+  lastDataDay: string | null;
   activeCampaigns: { campaignId: string; campaignName: string; roas: number; spend: number; purchases: number; status: string; color: string }[];
   recommendations: { type: string; campaign: string; message: string }[];
 }
@@ -228,7 +229,12 @@ export default function AdsPage() {
             {/* Active campaigns status */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Campaigns đang active</CardTitle>
+                <CardTitle className="text-base">
+                Campaigns đang active
+                {insights.lastDataDay && (
+                  <span className="ml-2 text-xs font-normal text-gray-400">· dữ liệu {insights.lastDataDay}</span>
+                )}
+              </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 {insights.activeCampaigns.length === 0 ? (

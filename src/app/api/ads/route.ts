@@ -82,9 +82,15 @@ export async function GET(request: Request) {
   });
 
   // ── Insights ────────────────────────────────────────────────────────────────
-  const activeCutoff = subDays(to, 4);
+  // Active = had spend on the most recent synced day (not a fixed 4-day window).
+  // Facebook API only returns rows for days with spend > 0, so a paused campaign
+  // won't appear on days after it was paused — accurate after the next sync.
+  const sortedDays = [...new Set(spends.map(s => format(new Date(s.date), "yyyy-MM-dd")))].sort();
+  const lastDataDay = sortedDays.length > 0 ? sortedDays[sortedDays.length - 1] : null;
   const activeCampaignIds = new Set(
-    spends.filter(s => new Date(s.date) >= activeCutoff && s.spend > 0).map(s => s.campaignId)
+    lastDataDay
+      ? spends.filter(s => format(new Date(s.date), "yyyy-MM-dd") === lastDataDay && s.spend > 0).map(s => s.campaignId)
+      : []
   );
   const activeCampaigns = campaigns.filter(c => activeCampaignIds.has(c.campaignId));
 
@@ -163,6 +169,7 @@ export async function GET(request: Request) {
   const insights = {
     overallTrend,
     trendDelta,
+    lastDataDay,
     activeCampaigns: activeCampaigns.map(c => ({
       campaignId: c.campaignId,
       campaignName: c.campaignName,
