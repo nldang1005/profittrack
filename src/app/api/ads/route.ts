@@ -103,9 +103,53 @@ export async function GET(request: Request) {
   const overallTrend: "improving" | "declining" | "stable" =
     trendDelta > 0.1 ? "improving" : trendDelta < -0.1 ? "declining" : "stable";
 
+  // Per-campaign ROAS trend (compare first vs second half for that campaign)
+  const campaignRoasTrend = (campaignId: string): number => {
+    const cs = spends.filter(s => s.campaignId === campaignId);
+    const h2 = cs.filter(s => new Date(s.date).getTime() >= midTs);
+    if (h2.reduce((a, r) => a + r.spend, 0) < 20) return 0; // not enough data in second half
+    return roasHalf(h2) - roasHalf(cs.filter(s => new Date(s.date).getTime() < midTs));
+  };
+
+  // Campaign display status (includes monitoring for low-spend)
+  const campaignStatus = (c: { roas: number; spend: number; purchases: number }): string => {
+    if (c.spend < 200) return "monitoring";
+    if (c.purchases === 0) return "danger";
+    return roasStatus(c.roas);
+  };
+
   // Per-campaign recommendations
   const recommendations: { type: string; campaign: string; message: string }[] = [];
+
+  // Overall trend alerts (highest priority — shown first)
+  if (overallTrend === "declining") {
+    recommendations.push({ type: "alert", campaign: "Tổng thể", message: `ROAS giảm ${Math.abs(trendDelta).toFixed(2)} điểm so với nửa đầu kỳ. Xem lại creative và frequency.` });
+  }
+  if (overallTrend === "improving") {
+    recommendations.push({ type: "positive", campaign: "Tổng thể", message: `ROAS tăng ${trendDelta.toFixed(2)} điểm — chiến dịch đang cải thiện tốt.` });
+  }
+
   for (const c of activeCampaigns) {
+    // Spend < $200 → chưa đủ dữ liệu, theo dõi thêm
+    if (c.spend < 200) {
+      recommendations.push({ type: "monitoring", campaign: c.campaignName, message: `Đã chi $${c.spend.toFixed(0)} — chưa đủ dữ liệu để đánh giá (ngưỡng $200). Tiếp tục theo dõi.` });
+      continue;
+    }
+
+    // Spend >= $200 nhưng chưa ra đơn nào → cảnh báo dừng ngay
+    if (c.purchases === 0) {
+      recommendations.push({ type: "pause", campaign: c.campaignName, message: `Đã chi $${c.spend.toFixed(0)} nhưng chưa ra đơn nào. Nên dừng hoặc thay đổi creative/target ngay.` });
+      continue;
+    }
+
+    // ROAS đang tăng dần → khuyến nghị tăng budget
+    const roasDelta = campaignRoasTrend(c.campaignId);
+    if (roasDelta >= 0.4 && c.roas >= 1.5) {
+      recommendations.push({ type: "scale_up", campaign: c.campaignName, message: `ROAS đang tăng dần (+${roasDelta.toFixed(2)} so với nửa đầu kỳ, hiện ${c.roas.toFixed(2)}x). Cân nhắc tăng budget 15–20%.` });
+      continue;
+    }
+
+    // Đánh giá theo ROAS tổng thể
     const status = roasStatus(c.roas);
     if (status === "danger") {
       recommendations.push({ type: "pause", campaign: c.campaignName, message: `ROAS ${c.roas.toFixed(2)}x — đang lỗ. Dừng hoặc thay đổi creative/target ngay.` });
@@ -114,12 +158,6 @@ export async function GET(request: Request) {
     } else if (status === "excellent") {
       recommendations.push({ type: "scale", campaign: c.campaignName, message: `ROAS ${c.roas.toFixed(2)}x — xuất sắc. Tăng budget 20–30% để scale.` });
     }
-  }
-  if (overallTrend === "declining") {
-    recommendations.unshift({ type: "alert", campaign: "Tổng thể", message: `ROAS giảm ${Math.abs(trendDelta).toFixed(2)} điểm so với nửa đầu kỳ. Xem lại creative và frequency.` });
-  }
-  if (overallTrend === "improving") {
-    recommendations.unshift({ type: "positive", campaign: "Tổng thể", message: `ROAS tăng ${trendDelta.toFixed(2)} điểm — chiến dịch đang cải thiện tốt.` });
   }
 
   const insights = {
@@ -130,7 +168,8 @@ export async function GET(request: Request) {
       campaignName: c.campaignName,
       roas: Math.round(c.roas * 100) / 100,
       spend: Math.round(c.spend * 100) / 100,
-      status: roasStatus(c.roas),
+      purchases: c.purchases,
+      status: campaignStatus(c),
       color: c.color,
     })),
     recommendations,

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { format, subDays } from "date-fns";
-import { TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle, XCircle, Zap, ArrowUpRight } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle, XCircle, Zap, ArrowUpRight, Eye } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Header from "@/components/layout/Header";
 import { formatCurrency, formatNumber } from "@/lib/utils";
@@ -27,7 +27,7 @@ interface Campaign {
 interface Insight {
   overallTrend: "improving" | "declining" | "stable";
   trendDelta: number;
-  activeCampaigns: { campaignId: string; campaignName: string; roas: number; spend: number; status: string; color: string }[];
+  activeCampaigns: { campaignId: string; campaignName: string; roas: number; spend: number; purchases: number; status: string; color: string }[];
   recommendations: { type: string; campaign: string; message: string }[];
 }
 
@@ -55,15 +55,18 @@ const STATUS_CONFIG = {
   good:      { label: "Tốt",      bg: "bg-blue-100",  text: "text-blue-700",  icon: TrendingUp },
   warning:   { label: "Cần tối ưu", bg: "bg-yellow-100", text: "text-yellow-700", icon: AlertTriangle },
   danger:    { label: "Đang lỗ",  bg: "bg-red-100",   text: "text-red-700",   icon: XCircle },
-  inactive:  { label: "Không active", bg: "bg-gray-100", text: "text-gray-500", icon: Minus },
+  inactive:   { label: "Không active", bg: "bg-gray-100",  text: "text-gray-500",  icon: Minus },
+  monitoring: { label: "Theo dõi",     bg: "bg-blue-50",  text: "text-blue-600",  icon: Eye },
 };
 
 const REC_CONFIG = {
   scale:    { bg: "bg-green-50 border-green-200",  icon: ArrowUpRight, iconColor: "text-green-600" },
   optimize: { bg: "bg-yellow-50 border-yellow-200", icon: Zap,          iconColor: "text-yellow-600" },
   pause:    { bg: "bg-red-50 border-red-200",       icon: XCircle,      iconColor: "text-red-600" },
-  alert:    { bg: "bg-orange-50 border-orange-200", icon: AlertTriangle, iconColor: "text-orange-600" },
-  positive: { bg: "bg-green-50 border-green-200",  icon: TrendingUp,   iconColor: "text-green-600" },
+  alert:      { bg: "bg-orange-50 border-orange-200", icon: AlertTriangle, iconColor: "text-orange-600" },
+  positive:   { bg: "bg-green-50 border-green-200",  icon: TrendingUp,   iconColor: "text-green-600" },
+  monitoring: { bg: "bg-blue-50 border-blue-200",    icon: Eye,          iconColor: "text-blue-500"  },
+  scale_up:   { bg: "bg-indigo-50 border-indigo-200", icon: TrendingUp,  iconColor: "text-indigo-600" },
 };
 
 export default function AdsPage() {
