@@ -115,9 +115,8 @@ function calcForDiffuserType(
       else keyword = `${prefix} 5 bottle`;
     }
 
-    // For 1–3 bottle bundles: try combined keyword with brush first (single-shipment price)
-    const is4plus = keyword.includes("4 bottle") || keyword.includes("5 bottle");
-    if (nBrush > 0 && !is4plus) {
+    // Always try combined keyword with brush first (single-shipment price)
+    if (nBrush > 0) {
       const combined = lookup(quotations, `${keyword} brush`, country);
       if (combined) {
         total += combined.totalPrice * nUnits;
@@ -129,7 +128,8 @@ function calcForDiffuserType(
     if (!q) return null;
     total += q.totalPrice * nUnits;
 
-    // Fallback: add standalone brush cost (4+ bottle bundles already include brush)
+    // Fallback: add standalone brush cost if no combined quotation found
+    const is4plus = keyword.includes("4 bottle") || keyword.includes("5 bottle");
     if (nBrush > 0 && !is4plus) {
       const bq = lookup(quotations, "brush", country);
       if (bq) total += bq.totalPrice * nBrush;
