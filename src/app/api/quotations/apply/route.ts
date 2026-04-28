@@ -145,9 +145,21 @@ function calcCOGS(comp: Composition, country: string, quotations: Quotation[]): 
   const { nJellyfish, nRhythm, nRain, nBloom, nSalt, nOils, nLamps, nBrush, nCannon } = comp;
 
   const nDiffusers = nJellyfish + nRhythm + nRain + nBloom + nSalt;
-  if (nDiffusers === 0 && nOils === 0 && nBrush === 0 && nCannon === 0) return null;
+  if (nDiffusers === 0 && nOils === 0 && nBrush === 0 && nCannon === 0 && nLamps === 0) return null;
 
   let total = 0;
+
+  // Triple mix: jellyfish + rain + rhythm
+  if (nJellyfish > 0 && nRain > 0 && nRhythm > 0) {
+    const b = Math.min(nOils, 5);
+    let keyword = `jellyfish rain rhythm ${b} bottle`;
+    if (nCannon > 0) keyword += " cannon";
+    if (nLamps  > 0) keyword += " lamp";
+    if (nBrush  > 0) keyword += " brush";
+    const q = lookup(quotations, keyword, country);
+    if (!q) return null;
+    return q.totalPrice;
+  }
 
   // Mixed jellyfish + rhythm order → look for combined quotation first
   if (nJellyfish > 0 && nRhythm > 0) {
@@ -210,7 +222,14 @@ function calcCOGS(comp: Composition, country: string, quotations: Quotation[]): 
 
   // No diffuser at all
   if (nDiffusers === 0) {
-    if (nOils > 0) {
+    if (nLamps > 0) {
+      // Standalone lamp product (lamp + optional oil bottle)
+      const b = Math.min(nOils, 4);
+      const key = nOils > 0 ? `lamp ${b} bottle` : "lamp";
+      const q = lookup(quotations, key, country);
+      if (!q) return null;
+      total += q.totalPrice * nLamps;
+    } else if (nOils > 0) {
       const b = Math.min(nOils, 4);
       const q = lookup(quotations, `oil ${b}`, country);
       if (!q) return null;
