@@ -4,13 +4,15 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
 // ─── Component classification ─────────────────────────────────────────────────
-type Component = "jellyfish" | "rhythm" | "rain" | "bloom" | "salt" | "oil" | "lamp" | "brush" | "cannon" | "ignore";
+type Component = "jellyfish" | "rhythm" | "rain" | "bloom" | "salt" | "oil" | "lamp" | "jlamp" | "brush" | "cannon" | "ignore";
 
 function classify(title: string, variantTitle: string | null): Component {
   const t = (title + " " + (variantTitle ?? "")).toLowerCase();
   if (t.includes("shipping protection") || t.includes("insurance")) return "ignore";
   if (t.includes("adapter")) return "ignore";  // bundled into salt unit cost
-  if (t.includes("lamp"))      return "lamp";
+  // "Difhouser™ Jellyfish Lamp" — standalone $5.26 lamp, must check before generic lamp
+  if (t.includes("jellyfish") && t.includes("lamp")) return "jlamp";
+  if (t.includes("lamp"))      return "lamp";   // ocean lamp $6.36, goes with diffuser bundles
   if (t.includes("cannon"))    return "cannon";
   if (t.includes("brush") || t.includes("cleaning")) return "brush";
   if (t.includes("bloom") || t.includes("botanical")) return "bloom";
@@ -34,13 +36,14 @@ interface Composition {
   nBloom:     number;
   nSalt:      number;
   nOils:      number;
-  nLamps:     number;
+  nLamps:     number;  // ocean lamp ($6.36) — in diffuser bundles
+  nJlamp:     number;  // jellyfish lamp ($5.26) — standalone product
   nBrush:     number;
   nCannon:    number;
 }
 
 function compose(lineItems: { title: string; variantTitle: string | null; quantity: number }[]): Composition {
-  let nJellyfish = 0, nRhythm = 0, nRain = 0, nBloom = 0, nSalt = 0, nOils = 0, nLamps = 0, nBrush = 0, nCannon = 0;
+  let nJellyfish = 0, nRhythm = 0, nRain = 0, nBloom = 0, nSalt = 0, nOils = 0, nLamps = 0, nJlamp = 0, nBrush = 0, nCannon = 0;
   for (const item of lineItems) {
     const type = classify(item.title, item.variantTitle);
     if (type === "jellyfish")   nJellyfish += item.quantity;
@@ -50,10 +53,11 @@ function compose(lineItems: { title: string; variantTitle: string | null; quanti
     else if (type === "salt")   nSalt      += item.quantity;
     else if (type === "oil")    nOils      += item.quantity;
     else if (type === "lamp")   nLamps     += item.quantity;
+    else if (type === "jlamp")  nJlamp     += item.quantity;
     else if (type === "brush")  nBrush     += item.quantity;
     else if (type === "cannon") nCannon    += item.quantity;
   }
-  return { nJellyfish, nRhythm, nRain, nBloom, nSalt, nOils, nLamps, nBrush, nCannon };
+  return { nJellyfish, nRhythm, nRain, nBloom, nSalt, nOils, nLamps, nJlamp, nBrush, nCannon };
 }
 
 // ─── Lookup helper ────────────────────────────────────────────────────────────
@@ -142,10 +146,10 @@ function calcForDiffuserType(
 }
 
 function calcCOGS(comp: Composition, country: string, quotations: Quotation[]): number | null {
-  const { nJellyfish, nRhythm, nRain, nBloom, nSalt, nOils, nLamps, nBrush, nCannon } = comp;
+  const { nJellyfish, nRhythm, nRain, nBloom, nSalt, nOils, nLamps, nJlamp, nBrush, nCannon } = comp;
 
   const nDiffusers = nJellyfish + nRhythm + nRain + nBloom + nSalt;
-  if (nDiffusers === 0 && nOils === 0 && nBrush === 0 && nCannon === 0 && nLamps === 0) return null;
+  if (nDiffusers === 0 && nOils === 0 && nBrush === 0 && nCannon === 0 && nLamps === 0 && nJlamp === 0) return null;
 
   let total = 0;
 
@@ -222,13 +226,13 @@ function calcCOGS(comp: Composition, country: string, quotations: Quotation[]): 
 
   // No diffuser at all
   if (nDiffusers === 0) {
-    if (nLamps > 0) {
-      // Standalone lamp product (lamp + optional oil bottle)
+    if (nJlamp > 0) {
+      // Standalone jellyfish lamp ($5.26) — "Difhouser™ Jellyfish Lamp"
       const b = Math.min(nOils, 4);
       const key = nOils > 0 ? `lamp ${b} bottle` : "lamp";
       const q = lookup(quotations, key, country);
       if (!q) return null;
-      total += q.totalPrice * nLamps;
+      total += q.totalPrice * nJlamp;
     } else if (nOils > 0) {
       const b = Math.min(nOils, 4);
       const q = lookup(quotations, `oil ${b}`, country);
