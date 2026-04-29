@@ -5,18 +5,19 @@ import { prisma } from "@/lib/db";
 
 export async function DELETE(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const { id } = await params;
   const store = await prisma.store.findFirst({ where: { userId: session.user.id } });
   if (!store) return NextResponse.json({ error: "No store" }, { status: 400 });
 
   await prisma.productQuotation.deleteMany({
-    where: { id: params.id, storeId: store.id },
+    where: { id, storeId: store.id },
   });
 
   return NextResponse.json({ success: true });
