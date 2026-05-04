@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
 // ─── Component classification ─────────────────────────────────────────────────
-type Component = "jellyfish" | "rhythm" | "rain" | "bloom" | "salt" | "oil" | "lamp" | "jlamp" | "brush" | "cannon" | "ignore";
+type Component = "jellyfish" | "rhythm" | "rain" | "flame" | "bloom" | "salt" | "oil" | "lamp" | "jlamp" | "brush" | "cannon" | "ignore";
 
 function classify(title: string, variantTitle: string | null): Component {
   const t = (title + " " + (variantTitle ?? "")).toLowerCase();
@@ -19,6 +19,7 @@ function classify(title: string, variantTitle: string | null): Component {
   if (t.includes("himalayan") || t.includes("salt stone")) return "salt";
   if (t.includes("rhythm")) return "rhythm";  // before jellyfish — "Aero-Jellyfish Rhythm" contains both
   if (t.includes("rain"))   return "rain";    // before jellyfish — "Aero-Jellyfish Rain" contains both
+  if (t.includes("flame"))  return "flame";   // before jellyfish — Flame diffuser $8.46
   if (
     t.includes("jellyfish") || t.includes("humidifier") || t.includes("vibe") ||
     t.includes("diffuser")  ||
@@ -33,6 +34,7 @@ interface Composition {
   nJellyfish: number;
   nRhythm:    number;
   nRain:      number;
+  nFlame:     number;
   nBloom:     number;
   nSalt:      number;
   nOils:      number;
@@ -43,12 +45,13 @@ interface Composition {
 }
 
 function compose(lineItems: { title: string; variantTitle: string | null; quantity: number }[]): Composition {
-  let nJellyfish = 0, nRhythm = 0, nRain = 0, nBloom = 0, nSalt = 0, nOils = 0, nLamps = 0, nJlamp = 0, nBrush = 0, nCannon = 0;
+  let nJellyfish = 0, nRhythm = 0, nRain = 0, nFlame = 0, nBloom = 0, nSalt = 0, nOils = 0, nLamps = 0, nJlamp = 0, nBrush = 0, nCannon = 0;
   for (const item of lineItems) {
     const type = classify(item.title, item.variantTitle);
     if (type === "jellyfish")   nJellyfish += item.quantity;
     else if (type === "rhythm") nRhythm    += item.quantity;
     else if (type === "rain")   nRain      += item.quantity;
+    else if (type === "flame")  nFlame     += item.quantity;
     else if (type === "bloom")  nBloom     += item.quantity;
     else if (type === "salt")   nSalt      += item.quantity;
     else if (type === "oil")    nOils      += item.quantity;
@@ -57,7 +60,7 @@ function compose(lineItems: { title: string; variantTitle: string | null; quanti
     else if (type === "brush")  nBrush     += item.quantity;
     else if (type === "cannon") nCannon    += item.quantity;
   }
-  return { nJellyfish, nRhythm, nRain, nBloom, nSalt, nOils, nLamps, nJlamp, nBrush, nCannon };
+  return { nJellyfish, nRhythm, nRain, nFlame, nBloom, nSalt, nOils, nLamps, nJlamp, nBrush, nCannon };
 }
 
 // ─── Lookup helper ────────────────────────────────────────────────────────────
@@ -146,9 +149,9 @@ function calcForDiffuserType(
 }
 
 function calcCOGS(comp: Composition, country: string, quotations: Quotation[]): number | null {
-  const { nJellyfish, nRhythm, nRain, nBloom, nSalt, nOils, nLamps, nJlamp, nBrush, nCannon } = comp;
+  const { nJellyfish, nRhythm, nRain, nFlame, nBloom, nSalt, nOils, nLamps, nJlamp, nBrush, nCannon } = comp;
 
-  const nDiffusers = nJellyfish + nRhythm + nRain + nBloom + nSalt;
+  const nDiffusers = nJellyfish + nRhythm + nRain + nFlame + nBloom + nSalt;
   if (nDiffusers === 0 && nOils === 0 && nBrush === 0 && nCannon === 0 && nLamps === 0 && nJlamp === 0) return null;
 
   let total = 0;
@@ -189,6 +192,18 @@ function calcCOGS(comp: Composition, country: string, quotations: Quotation[]): 
     return q.totalPrice;
   }
 
+  // Mixed jellyfish + flame order → look for combined quotation first
+  if (nJellyfish > 0 && nFlame > 0) {
+    const b = Math.min(nOils, 5);
+    let keyword = `jellyfish flame ${b} bottle`;
+    if (nCannon > 0) keyword += " cannon";
+    if (nLamps  > 0) keyword += " lamp";
+    if (nBrush  > 0) keyword += " brush";
+    const q = lookup(quotations, keyword, country);
+    if (!q) return null;
+    return q.totalPrice;
+  }
+
   // Pure rhythm orders
   if (nRhythm > 0) {
     const sub = calcForDiffuserType("rhythm", nRhythm, nOils, nLamps, nBrush, nCannon, country, quotations);
@@ -199,6 +214,13 @@ function calcCOGS(comp: Composition, country: string, quotations: Quotation[]): 
   // Pure rain orders
   if (nRain > 0) {
     const sub = calcForDiffuserType("rain", nRain, nOils, nLamps, nBrush, nCannon, country, quotations);
+    if (sub === null) return null;
+    total += sub;
+  }
+
+  // Pure flame orders
+  if (nFlame > 0) {
+    const sub = calcForDiffuserType("flame", nFlame, nOils, nLamps, nBrush, nCannon, country, quotations);
     if (sub === null) return null;
     total += sub;
   }
