@@ -4,11 +4,12 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
 // ─── Component classification ─────────────────────────────────────────────────
-type Component = "jellyfish" | "rhythm" | "rain" | "flame" | "bloom" | "salt" | "oil" | "lamp" | "jlamp" | "brush" | "cannon" | "ignore";
+type Component = "jellyfish" | "rhythm" | "rain" | "flame" | "bloom" | "salt" | "oil" | "lamp" | "jlamp" | "brush" | "cannon" | "converter" | "ignore";
 
 function classify(title: string, variantTitle: string | null): Component {
   const t = (title + " " + (variantTitle ?? "")).toLowerCase();
   if (t.includes("shipping protection") || t.includes("insurance")) return "ignore";
+  if (t.includes("converter")) return "converter"; // $8.77 per unit — before adapter check
   if (t.includes("adapter")) return "ignore";  // bundled into salt unit cost
   // "Difhouser™ Jellyfish Lamp" — standalone $5.26 lamp, must check before generic lamp
   if (t.includes("jellyfish") && t.includes("lamp")) return "jlamp";
@@ -42,10 +43,11 @@ interface Composition {
   nJlamp:     number;  // jellyfish lamp ($5.26) — standalone product
   nBrush:     number;
   nCannon:    number;
+  nConverter: number;
 }
 
 function compose(lineItems: { title: string; variantTitle: string | null; quantity: number }[]): Composition {
-  let nJellyfish = 0, nRhythm = 0, nRain = 0, nFlame = 0, nBloom = 0, nSalt = 0, nOils = 0, nLamps = 0, nJlamp = 0, nBrush = 0, nCannon = 0;
+  let nJellyfish = 0, nRhythm = 0, nRain = 0, nFlame = 0, nBloom = 0, nSalt = 0, nOils = 0, nLamps = 0, nJlamp = 0, nBrush = 0, nCannon = 0, nConverter = 0;
   for (const item of lineItems) {
     const type = classify(item.title, item.variantTitle);
     if (type === "jellyfish")   nJellyfish += item.quantity;
@@ -58,9 +60,10 @@ function compose(lineItems: { title: string; variantTitle: string | null; quanti
     else if (type === "lamp")   nLamps     += item.quantity;
     else if (type === "jlamp")  nJlamp     += item.quantity;
     else if (type === "brush")  nBrush     += item.quantity;
-    else if (type === "cannon") nCannon    += item.quantity;
+    else if (type === "cannon")    nCannon    += item.quantity;
+    else if (type === "converter") nConverter += item.quantity;
   }
-  return { nJellyfish, nRhythm, nRain, nFlame, nBloom, nSalt, nOils, nLamps, nJlamp, nBrush, nCannon };
+  return { nJellyfish, nRhythm, nRain, nFlame, nBloom, nSalt, nOils, nLamps, nJlamp, nBrush, nCannon, nConverter };
 }
 
 // ─── Lookup helper ────────────────────────────────────────────────────────────
@@ -149,10 +152,10 @@ function calcForDiffuserType(
 }
 
 function calcCOGS(comp: Composition, country: string, quotations: Quotation[]): number | null {
-  const { nJellyfish, nRhythm, nRain, nFlame, nBloom, nSalt, nOils, nLamps, nJlamp, nBrush, nCannon } = comp;
+  const { nJellyfish, nRhythm, nRain, nFlame, nBloom, nSalt, nOils, nLamps, nJlamp, nBrush, nCannon, nConverter } = comp;
 
   const nDiffusers = nJellyfish + nRhythm + nRain + nFlame + nBloom + nSalt;
-  if (nDiffusers === 0 && nOils === 0 && nBrush === 0 && nCannon === 0 && nLamps === 0 && nJlamp === 0) return null;
+  if (nDiffusers === 0 && nOils === 0 && nBrush === 0 && nCannon === 0 && nLamps === 0 && nJlamp === 0 && nConverter === 0) return null;
 
   let total = 0;
 
@@ -266,6 +269,13 @@ function calcCOGS(comp: Composition, country: string, quotations: Quotation[]): 
       if (!q) return null;
       total += q.totalPrice * nBrush;
     }
+  }
+
+  // Converter — added to any order type ($8.77/unit)
+  if (nConverter > 0) {
+    const q = lookup(quotations, "converter", country);
+    if (!q) return null;
+    total += q.totalPrice * nConverter;
   }
 
   return total > 0 ? total : null;
