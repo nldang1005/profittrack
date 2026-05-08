@@ -55,28 +55,41 @@ export async function GET(request: Request) {
     .map((c, i) => ({ ...c, roas: c.spend > 0 ? c.revenue / c.spend : 0, color: CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length] }))
     .sort((a, b) => b.spend - a.spend);
 
+  // ── Pre-index spends by date string and by "date|campaignId" for O(1) lookups ──
+  const byDate = new Map<string, { spend: number; revenue: number }>();
+  const byCampaignDate = new Map<string, { spend: number; revenue: number }>();
+  for (const r of spends) {
+    const ds = format(new Date(r.date), "yyyy-MM-dd");
+    const d  = byDate.get(ds) ?? { spend: 0, revenue: 0 };
+    d.spend += r.spend; d.revenue += r.revenue;
+    byDate.set(ds, d);
+    const key = `${r.campaignId}|${ds}`;
+    const c   = byCampaignDate.get(key) ?? { spend: 0, revenue: 0 };
+    c.spend += r.spend; c.revenue += r.revenue;
+    byCampaignDate.set(key, c);
+  }
+
   // ── Daily totals ────────────────────────────────────────────────────────────
   const days = eachDayOfInterval({ start: from, end: to });
   const dailySpend = days.map((day) => {
     const ds  = format(day, "yyyy-MM-dd");
-    const row = spends.filter(r => format(new Date(r.date), "yyyy-MM-dd") === ds);
+    const row = byDate.get(ds) ?? { spend: 0, revenue: 0 };
     return {
       date:    format(day, "MMM d"),
-      spend:   Math.round(row.reduce((s, r) => s + r.spend, 0)   * 100) / 100,
-      revenue: Math.round(row.reduce((s, r) => s + r.revenue, 0) * 100) / 100,
+      spend:   Math.round(row.spend   * 100) / 100,
+      revenue: Math.round(row.revenue * 100) / 100,
     };
   });
 
   // ── Daily ROAS by campaign (top 6 by spend) ─────────────────────────────────
   const topCampaigns = campaigns.slice(0, 6);
   const dailyByCampaign = days.map((day) => {
-    const ds    = format(day, "yyyy-MM-dd");
-    const entry: any = { date: format(day, "MMM d") };
+    const ds    = format(day, "MMM d");
+    const entry: any = { date: ds };
+    const dateKey = format(day, "yyyy-MM-dd");
     for (const c of topCampaigns) {
-      const rows  = spends.filter(r => r.campaignId === c.campaignId && format(new Date(r.date), "yyyy-MM-dd") === ds);
-      const sp    = rows.reduce((a, r) => a + r.spend, 0);
-      const rev   = rows.reduce((a, r) => a + r.revenue, 0);
-      entry[c.campaignId] = sp > 0 ? Math.round((rev / sp) * 100) / 100 : null;
+      const row = byCampaignDate.get(`${c.campaignId}|${dateKey}`);
+      entry[c.campaignId] = row && row.spend > 0 ? Math.round((row.revenue / row.spend) * 100) / 100 : null;
     }
     return entry;
   });

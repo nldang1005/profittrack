@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { format, subDays } from "date-fns";
 import { Search, ExternalLink, TrendingUp, TrendingDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,14 +66,17 @@ export default function OrdersPage() {
     fetchOrders();
   }, [dateRange]);
 
-  const filtered = orders.filter(
-    (o) =>
-      String(o.orderNumber).includes(search) ||
-      o.email?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return orders.filter(o =>
+      String(o.orderNumber).includes(q) || (o.email?.toLowerCase().includes(q) ?? false)
+    );
+  }, [orders, search]);
 
-  const totalRevenue = filtered.reduce((s, o) => s + o.totalPrice, 0);
-  const totalProfit = filtered.reduce((s, o) => s + o.grossProfit, 0);
+  const [totalRevenue, totalProfit] = useMemo(
+    () => [filtered.reduce((s, o) => s + o.totalPrice, 0), filtered.reduce((s, o) => s + o.grossProfit, 0)],
+    [filtered]
+  );
 
   return (
     <div className="flex flex-col h-full">
