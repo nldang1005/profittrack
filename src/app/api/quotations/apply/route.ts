@@ -9,8 +9,9 @@ type Component = "jellyfish" | "rhythm" | "rain" | "flame" | "bloom" | "salt" | 
 function classify(title: string, variantTitle: string | null): Component {
   const t = (title + " " + (variantTitle ?? "")).toLowerCase();
   if (t.includes("shipping protection") || t.includes("insurance")) return "ignore";
-  if (t.includes("converter")) return "converter"; // $8.77 per unit — before adapter check
-  if (t.includes("adapter")) return "ignore";  // bundled into salt unit cost
+  if (t.includes("converter")) return "converter";
+  if (t.includes("plug") && t.includes("adapter")) return "converter"; // "Universal Power Plug Adapter" = $8.77
+  if (t.includes("adapter")) return "ignore";  // power adapters bundled with salt lamp — no separate cost
   // "Difhouser™ Jellyfish Lamp" — standalone $5.26 lamp, must check before generic lamp
   if (t.includes("jellyfish") && t.includes("lamp")) return "jlamp";
   if (t.includes("lamp"))      return "lamp";   // ocean lamp $6.36, goes with diffuser bundles
