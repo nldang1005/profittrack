@@ -40,31 +40,47 @@ interface Composition {
   nBloom:     number;
   nSalt:      number;
   nOils:      number;
-  nLamps:     number;  // ocean lamp ($6.36) — in diffuser bundles
-  nJlamp:     number;  // jellyfish lamp ($5.26) — standalone product
+  nLamps:     number;
+  nJlamp:     number;
   nBrush:     number;
   nCannon:    number;
   nConverter: number;
+  oilSets:    { size: number; count: number }[]; // gift sets — cheaper than individual bottles
 }
 
 function compose(lineItems: { title: string; variantTitle: string | null; quantity: number }[]): Composition {
-  let nJellyfish = 0, nRhythm = 0, nRain = 0, nFlame = 0, nBloom = 0, nSalt = 0, nOils = 0, nLamps = 0, nJlamp = 0, nBrush = 0, nCannon = 0, nConverter = 0;
+  let nJellyfish = 0, nRhythm = 0, nRain = 0, nFlame = 0, nBloom = 0, nSalt = 0, nOils = 0,
+      nLamps = 0, nJlamp = 0, nBrush = 0, nCannon = 0, nConverter = 0;
+  const oilSets: { size: number; count: number }[] = [];
+
   for (const item of lineItems) {
     const type = classify(item.title, item.variantTitle);
-    if (type === "jellyfish")   nJellyfish += item.quantity;
-    else if (type === "rhythm") nRhythm    += item.quantity;
-    else if (type === "rain")   nRain      += item.quantity;
-    else if (type === "flame")  nFlame     += item.quantity;
-    else if (type === "bloom")  nBloom     += item.quantity;
-    else if (type === "salt")   nSalt      += item.quantity;
-    else if (type === "oil")    nOils      += item.quantity;
-    else if (type === "lamp")   nLamps     += item.quantity;
-    else if (type === "jlamp")  nJlamp     += item.quantity;
-    else if (type === "brush")  nBrush     += item.quantity;
-    else if (type === "cannon")    nCannon    += item.quantity;
-    else if (type === "converter") nConverter += item.quantity;
+    if (type === "jellyfish")        nJellyfish += item.quantity;
+    else if (type === "rhythm")      nRhythm    += item.quantity;
+    else if (type === "rain")        nRain      += item.quantity;
+    else if (type === "flame")       nFlame     += item.quantity;
+    else if (type === "bloom")       nBloom     += item.quantity;
+    else if (type === "salt")        nSalt      += item.quantity;
+    else if (type === "oil") {
+      // Detect "Set N" in variant (e.g. "Set 3 + Box") → count actual bottles
+      const setMatch = (item.variantTitle ?? "").match(/[Ss]et\s*(\d+)/);
+      if (setMatch) {
+        const size = parseInt(setMatch[1]);
+        nOils += size * item.quantity;
+        const existing = oilSets.find(s => s.size === size);
+        if (existing) existing.count += item.quantity;
+        else oilSets.push({ size, count: item.quantity });
+      } else {
+        nOils += item.quantity;
+      }
+    }
+    else if (type === "lamp")        nLamps     += item.quantity;
+    else if (type === "jlamp")       nJlamp     += item.quantity;
+    else if (type === "brush")       nBrush     += item.quantity;
+    else if (type === "cannon")      nCannon    += item.quantity;
+    else if (type === "converter")   nConverter += item.quantity;
   }
-  return { nJellyfish, nRhythm, nRain, nFlame, nBloom, nSalt, nOils, nLamps, nJlamp, nBrush, nCannon, nConverter };
+  return { nJellyfish, nRhythm, nRain, nFlame, nBloom, nSalt, nOils, nLamps, nJlamp, nBrush, nCannon, nConverter, oilSets };
 }
 
 // ─── Lookup helper ────────────────────────────────────────────────────────────
@@ -279,11 +295,21 @@ function calcCOGS(comp: Composition, country: string, quotations: Quotation[]): 
     total += q.totalPrice * nConverter;
   }
 
+  // Oil sets — adjust cost vs individual bottles already priced in diffuser quotation
+  // Individual oil cost assumed in quotations: $1.20/bottle
+  for (const set of comp.oilSets) {
+    const q = lookup(quotations, `oil set ${set.size}`, country);
+    if (q) {
+      const individualCost = set.size * 1.20;
+      total += (q.totalPrice - individualCost) * set.count; // negative = cheaper than individual
+    }
+  }
+
   return total > 0 ? total : null;
 }
 
 // ─── API handler ──────────────────────────────────────────────────────────────
-export async function POST() {
+export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -292,13 +318,22 @@ export async function POST() {
   const store = await prisma.store.findFirst({ where: { userId: session.user.id } });
   if (!store) return NextResponse.json({ error: "No store" }, { status: 400 });
 
+  let fromDate: Date | undefined;
+  try {
+    const body = await request.json();
+    if (body?.from) fromDate = new Date(body.from + "T00:00:00.000Z");
+  } catch { /* no body — apply all */ }
+
   const quotations = await prisma.productQuotation.findMany({ where: { storeId: store.id } });
   if (quotations.length === 0) {
     return NextResponse.json({ success: true, updated: 0, skipped: 0, message: "No quotations defined" });
   }
 
   const orders = await prisma.order.findMany({
-    where: { storeId: store.id },
+    where: {
+      storeId: store.id,
+      ...(fromDate ? { createdAt: { gte: fromDate } } : {}),
+    },
     include: { lineItems: true },
   });
 
