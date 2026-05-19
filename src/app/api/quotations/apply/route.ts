@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
 // ─── Component classification ─────────────────────────────────────────────────
-type Component = "jellyfish" | "rhythm" | "rain" | "flame" | "bloom" | "salt" | "oil" | "lamp" | "jlamp" | "brush" | "cannon" | "converter" | "ignore";
+type Component = "jellyfish" | "rhythm" | "rain" | "flame" | "titanic" | "cozy" | "bloom" | "salt" | "oil" | "lamp" | "jlamp" | "brush" | "cannon" | "converter" | "ignore";
 
 function classify(title: string, variantTitle: string | null): Component {
   const t = (title + " " + (variantTitle ?? "")).toLowerCase();
@@ -21,7 +21,9 @@ function classify(title: string, variantTitle: string | null): Component {
   if (t.includes("himalayan") || t.includes("salt stone")) return "salt";
   if (t.includes("rhythm")) return "rhythm";  // before jellyfish — "Aero-Jellyfish Rhythm" contains both
   if (t.includes("rain"))   return "rain";    // before jellyfish — "Aero-Jellyfish Rain" contains both
-  if (t.includes("flame"))  return "flame";   // before jellyfish — Flame diffuser $8.46
+  if (t.includes("flame"))   return "flame";
+  if (t.includes("titanic")) return "titanic"; // Titanic diffuser $14.7
+  if (t.includes("cozy") || t.includes("cabin")) return "cozy"; // Cozy Cabin $9.96
   if (
     t.includes("jellyfish") || t.includes("humidifier") || t.includes("vibe") ||
     t.includes("diffuser")  ||
@@ -37,6 +39,8 @@ interface Composition {
   nRhythm:    number;
   nRain:      number;
   nFlame:     number;
+  nTitanic:   number;
+  nCozy:      number;
   nBloom:     number;
   nSalt:      number;
   nOils:      number;
@@ -49,7 +53,7 @@ interface Composition {
 }
 
 function compose(lineItems: { title: string; variantTitle: string | null; quantity: number }[]): Composition {
-  let nJellyfish = 0, nRhythm = 0, nRain = 0, nFlame = 0, nBloom = 0, nSalt = 0, nOils = 0,
+  let nJellyfish = 0, nRhythm = 0, nRain = 0, nFlame = 0, nTitanic = 0, nCozy = 0, nBloom = 0, nSalt = 0, nOils = 0,
       nLamps = 0, nJlamp = 0, nBrush = 0, nCannon = 0, nConverter = 0;
   const oilSets: { size: number; count: number }[] = [];
 
@@ -59,6 +63,8 @@ function compose(lineItems: { title: string; variantTitle: string | null; quanti
     else if (type === "rhythm")      nRhythm    += item.quantity;
     else if (type === "rain")        nRain      += item.quantity;
     else if (type === "flame")       nFlame     += item.quantity;
+    else if (type === "titanic")     nTitanic   += item.quantity;
+    else if (type === "cozy")        nCozy      += item.quantity;
     else if (type === "bloom")       nBloom     += item.quantity;
     else if (type === "salt")        nSalt      += item.quantity;
     else if (type === "oil") {
@@ -80,7 +86,7 @@ function compose(lineItems: { title: string; variantTitle: string | null; quanti
     else if (type === "cannon")      nCannon    += item.quantity;
     else if (type === "converter")   nConverter += item.quantity;
   }
-  return { nJellyfish, nRhythm, nRain, nFlame, nBloom, nSalt, nOils, nLamps, nJlamp, nBrush, nCannon, nConverter, oilSets };
+  return { nJellyfish, nRhythm, nRain, nFlame, nTitanic, nCozy, nBloom, nSalt, nOils, nLamps, nJlamp, nBrush, nCannon, nConverter, oilSets };
 }
 
 // ─── Lookup helper ────────────────────────────────────────────────────────────
@@ -169,9 +175,9 @@ function calcForDiffuserType(
 }
 
 function calcCOGS(comp: Composition, country: string, quotations: Quotation[]): number | null {
-  const { nJellyfish, nRhythm, nRain, nFlame, nBloom, nSalt, nOils, nLamps, nJlamp, nBrush, nCannon, nConverter } = comp;
+  const { nJellyfish, nRhythm, nRain, nFlame, nTitanic, nCozy, nBloom, nSalt, nOils, nLamps, nJlamp, nBrush, nCannon, nConverter } = comp;
 
-  const nDiffusers = nJellyfish + nRhythm + nRain + nFlame + nBloom + nSalt;
+  const nDiffusers = nJellyfish + nRhythm + nRain + nFlame + nTitanic + nCozy + nBloom + nSalt;
   if (nDiffusers === 0 && nOils === 0 && nBrush === 0 && nCannon === 0 && nLamps === 0 && nJlamp === 0 && nConverter === 0) return null;
 
   let total = 0;
@@ -241,6 +247,20 @@ function calcCOGS(comp: Composition, country: string, quotations: Quotation[]): 
   // Pure flame orders
   if (nFlame > 0) {
     const sub = calcForDiffuserType("flame", nFlame, nOils, nLamps, nBrush, nCannon, country, quotations);
+    if (sub === null) return null;
+    total += sub;
+  }
+
+  // Titanic diffuser orders
+  if (nTitanic > 0) {
+    const sub = calcForDiffuserType("titanic", nTitanic, nOils, nLamps, nBrush, nCannon, country, quotations);
+    if (sub === null) return null;
+    total += sub;
+  }
+
+  // Cozy Cabin diffuser orders
+  if (nCozy > 0) {
+    const sub = calcForDiffuserType("cozy", nCozy, nOils, nLamps, nBrush, nCannon, country, quotations);
     if (sub === null) return null;
     total += sub;
   }
