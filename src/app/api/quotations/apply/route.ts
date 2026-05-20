@@ -4,11 +4,12 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
 // ─── Component classification ─────────────────────────────────────────────────
-type Component = "jellyfish" | "rhythm" | "rain" | "flame" | "titanic" | "cozy" | "bloom" | "salt" | "oil" | "lamp" | "jlamp" | "brush" | "cannon" | "converter" | "ignore";
+type Component = "jellyfish" | "rhythm" | "rain" | "flame" | "titanic" | "cozy" | "bloom" | "salt" | "oil" | "lamp" | "jlamp" | "brush" | "cannon" | "converter" | "perfumeoil" | "ignore";
 
 function classify(title: string, variantTitle: string | null): Component {
   const t = (title + " " + (variantTitle ?? "")).toLowerCase();
   if (t.includes("shipping protection") || t.includes("insurance")) return "ignore";
+  if (t.includes("30ml") || t.includes("perfume")) return "perfumeoil"; // $2.7/unit
   if (t.includes("converter")) return "converter";
   if (t.includes("plug") && t.includes("adapter")) return "converter"; // "Universal Power Plug Adapter" = $8.77
   if (t.includes("adapter")) return "ignore";  // power adapters bundled with salt lamp — no separate cost
@@ -48,13 +49,14 @@ interface Composition {
   nJlamp:     number;
   nBrush:     number;
   nCannon:    number;
-  nConverter: number;
-  oilSets:    { size: number; count: number }[]; // gift sets — cheaper than individual bottles
+  nConverter:  number;
+  nPerfumeOil: number;
+  oilSets:     { size: number; count: number }[]; // gift sets — cheaper than individual bottles
 }
 
 function compose(lineItems: { title: string; variantTitle: string | null; quantity: number }[]): Composition {
   let nJellyfish = 0, nRhythm = 0, nRain = 0, nFlame = 0, nTitanic = 0, nCozy = 0, nBloom = 0, nSalt = 0, nOils = 0,
-      nLamps = 0, nJlamp = 0, nBrush = 0, nCannon = 0, nConverter = 0;
+      nLamps = 0, nJlamp = 0, nBrush = 0, nCannon = 0, nConverter = 0, nPerfumeOil = 0;
   const oilSets: { size: number; count: number }[] = [];
 
   for (const item of lineItems) {
@@ -84,9 +86,10 @@ function compose(lineItems: { title: string; variantTitle: string | null; quanti
     else if (type === "jlamp")       nJlamp     += item.quantity;
     else if (type === "brush")       nBrush     += item.quantity;
     else if (type === "cannon")      nCannon    += item.quantity;
-    else if (type === "converter")   nConverter += item.quantity;
+    else if (type === "converter")   nConverter   += item.quantity;
+    else if (type === "perfumeoil")  nPerfumeOil  += item.quantity;
   }
-  return { nJellyfish, nRhythm, nRain, nFlame, nTitanic, nCozy, nBloom, nSalt, nOils, nLamps, nJlamp, nBrush, nCannon, nConverter, oilSets };
+  return { nJellyfish, nRhythm, nRain, nFlame, nTitanic, nCozy, nBloom, nSalt, nOils, nLamps, nJlamp, nBrush, nCannon, nConverter, nPerfumeOil, oilSets };
 }
 
 // ─── Lookup helper ────────────────────────────────────────────────────────────
@@ -175,10 +178,10 @@ function calcForDiffuserType(
 }
 
 function calcCOGS(comp: Composition, country: string, quotations: Quotation[]): number | null {
-  const { nJellyfish, nRhythm, nRain, nFlame, nTitanic, nCozy, nBloom, nSalt, nOils, nLamps, nJlamp, nBrush, nCannon, nConverter } = comp;
+  const { nJellyfish, nRhythm, nRain, nFlame, nTitanic, nCozy, nBloom, nSalt, nOils, nLamps, nJlamp, nBrush, nCannon, nConverter, nPerfumeOil } = comp;
 
   const nDiffusers = nJellyfish + nRhythm + nRain + nFlame + nTitanic + nCozy + nBloom + nSalt;
-  if (nDiffusers === 0 && nOils === 0 && nBrush === 0 && nCannon === 0 && nLamps === 0 && nJlamp === 0 && nConverter === 0) return null;
+  if (nDiffusers === 0 && nOils === 0 && nBrush === 0 && nCannon === 0 && nLamps === 0 && nJlamp === 0 && nConverter === 0 && nPerfumeOil === 0) return null;
 
   let total = 0;
 
@@ -313,6 +316,13 @@ function calcCOGS(comp: Composition, country: string, quotations: Quotation[]): 
     const q = lookup(quotations, "converter", country);
     if (!q) return null;
     total += q.totalPrice * nConverter;
+  }
+
+  // 30ml Perfume Oil — fixed add-on cost ($2.7/unit, shipping bundled with order)
+  if (nPerfumeOil > 0) {
+    const q = lookup(quotations, "perfume oil", country);
+    if (!q) return null;
+    total += q.totalPrice * nPerfumeOil;
   }
 
   // Oil sets — adjust cost vs individual bottles already priced in diffuser quotation
